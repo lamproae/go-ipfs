@@ -53,7 +53,7 @@ test_filestore_adds() {
 	'
 
 	test_expect_success "'ipfs filestore ls' output looks good'" '
-		ipfs filestore ls | LC_ALL=C sort > ls_actual &&
+		ipfs filestore ls | sort > ls_actual &&
 		test_cmp ls_expect ls_actual
 	'
 
