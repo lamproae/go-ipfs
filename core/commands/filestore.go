@@ -175,7 +175,7 @@ var dupsFileStore = &cmds.Command{
 			return
 		}
 
-		out := make(chan interface{})
+		out := make(chan interface{}, 128)
 		res.SetOutput((<-chan interface{})(out))
 
 		go func() {
