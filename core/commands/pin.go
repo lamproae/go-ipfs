@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"time"
 
 	cmds "github.com/ipfs/go-ipfs/commands"
 	core "github.com/ipfs/go-ipfs/core"
@@ -33,6 +34,11 @@ type PinOutput struct {
 	Pins []*cid.Cid
 }
 
+type AddPinOutput struct {
+	Pins     []*cid.Cid
+	Progress int `json:",omitempty"`
+}
+
 var addPinCmd = &cmds.Command{
 	Helptext: cmds.HelpText{
 		Tagline:          "Pin objects to local storage.",
@@ -44,8 +50,9 @@ var addPinCmd = &cmds.Command{
 	},
 	Options: []cmds.Option{
 		cmds.BoolOption("recursive", "r", "Recursively pin the object linked to by the specified object(s).").Default(true),
+		cmds.BoolOption("progress", "Show progress"),
 	},
-	Type: PinOutput{},
+	Type: AddPinOutput{},
 	Run: func(req cmds.Request, res cmds.Response) {
 		n, err := req.InvocContext().GetNode()
 		if err != nil {
@@ -61,22 +68,84 @@ var addPinCmd = &cmds.Command{
 			res.SetError(err, cmds.ErrNormal)
 			return
 		}
+		showProgress, _, _ := req.Option("progress").Bool()
 
-		added, err := corerepo.Pin(n, req.Context(), req.Arguments(), recursive)
-		if err != nil {
-			res.SetError(err, cmds.ErrNormal)
+		if !showProgress {
+			added, err := corerepo.Pin(n, req.Context(), req.Arguments(), recursive)
+			if err != nil {
+				res.SetError(err, cmds.ErrNormal)
+				return
+			}
+			res.SetOutput(&AddPinOutput{Pins: added})
 			return
 		}
 
-		res.SetOutput(&PinOutput{added})
+		v := new(dag.ProgressTracker)
+		ctx := context.WithValue(req.Context(), "progress", v)
+
+		ch := make(chan []*cid.Cid)
+		go func() {
+			defer close(ch)
+			added, err := corerepo.Pin(n, ctx, req.Arguments(), recursive)
+			if err != nil {
+				res.SetError(err, cmds.ErrNormal)
+				return
+			}
+			ch <- added
+		}()
+		out := make(chan interface{})
+		res.SetOutput((<-chan interface{})(out))
+		go func() {
+			defer close(out)
+			for {
+				timer := time.NewTimer(500 * time.Millisecond)
+				defer timer.Stop()
+				select {
+				case val, ok := <-ch:
+					if !ok {
+						// error already set just return
+						return
+					}
+					out <- &AddPinOutput{Progress: -1, Pins: val}
+					return
+				case <-timer.C:
+					out <- &AddPinOutput{Progress: v.Value()}
+				case <-ctx.Done():
+					res.SetError(ctx.Err(), cmds.ErrNormal)
+					return
+				}
+			}
+		}()
 	},
 	Marshalers: cmds.MarshalerMap{
 		cmds.Text: func(res cmds.Response) (io.Reader, error) {
-			added, ok := res.Output().(*PinOutput)
-			if !ok {
-				return nil, u.ErrCast()
-			}
+			var added []*cid.Cid
 
+			r, ok := res.Output().(*AddPinOutput)
+			if ok {
+				added = r.Pins
+			} else {
+				ch, ok := res.Output().(<-chan interface{})
+				if !ok {
+					return nil, u.ErrCast()
+				}
+				progressLine := false
+				for r0 := range ch {
+					r := r0.(*AddPinOutput)
+					if r.Progress == -1 || r.Pins != nil {
+						added = r.Pins
+					} else {
+						if progressLine {
+							fmt.Fprintf(res.Stderr(), "\r")
+						}
+						fmt.Fprintf(res.Stderr(), "Fetched/Processed %d nodes", r.Progress)
+						progressLine = true
+					}
+				}
+				if progressLine {
+					fmt.Fprintf(res.Stderr(), "\n")
+				}
+			}
 			var pintype string
 			rec, found, _ := res.Request().Option("recursive").Bool()
 			if rec || !found {
@@ -86,7 +155,7 @@ var addPinCmd = &cmds.Command{
 			}
 
 			buf := new(bytes.Buffer)
-			for _, k := range added.Pins {
+			for _, k := range added {
 				fmt.Fprintf(buf, "pinned %s %s\n", k, pintype)
 			}
 			return buf, nil

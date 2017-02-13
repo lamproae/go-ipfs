@@ -377,6 +377,7 @@ func EnumerateChildren(ctx context.Context, ds LinkService, root *cid.Cid, visit
 	} else if err != nil {
 		return err
 	}
+	v, _ := ctx.Value("progress").(*ProgressTracker)
 	for _, lnk := range links {
 		c := lnk.Cid
 		if visit(c) {
@@ -384,9 +385,29 @@ func EnumerateChildren(ctx context.Context, ds LinkService, root *cid.Cid, visit
 			if err != nil {
 				return err
 			}
+			if v != nil {
+				v.Increment()
+			}
 		}
 	}
 	return nil
+}
+
+type ProgressTracker struct {
+	Total int
+	lk sync.Mutex
+}
+
+func (p *ProgressTracker) Increment() {
+	p.lk.Lock()
+	defer p.lk.Unlock()
+	p.Total++
+}
+
+func (p *ProgressTracker) Value() int {
+	p.lk.Lock()
+	defer p.lk.Unlock()
+	return p.Total
 }
 
 // FetchGraphConcurrency is total number of concurrent fetches that
