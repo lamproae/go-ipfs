@@ -128,9 +128,7 @@ var addPinCmd = &cmds.Command{
 				progressLine := false
 				for r0 := range out {
 					r := r0.(*AddPinOutput)
-					if res.Error() != nil {
-						return nil, res.Error()
-					} else if r.Progress == -1 || r.Pins != nil {
+					if r.Pins != nil {
 						added = r.Pins
 					} else {
 						if progressLine {
@@ -142,6 +140,9 @@ var addPinCmd = &cmds.Command{
 				}
 				if progressLine {
 					fmt.Fprintf(res.Stderr(), "\n")
+				}
+				if res.Error() != nil {
+					return nil, res.Error()
 				}
 			default:
 				return nil, u.ErrCast()
