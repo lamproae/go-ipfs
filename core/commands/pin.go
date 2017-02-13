@@ -121,18 +121,16 @@ var addPinCmd = &cmds.Command{
 		cmds.Text: func(res cmds.Response) (io.Reader, error) {
 			var added []*cid.Cid
 
-			r, ok := res.Output().(*AddPinOutput)
-			if ok {
-				added = r.Pins
-			} else {
-				ch, ok := res.Output().(<-chan interface{})
-				if !ok {
-					return nil, u.ErrCast()
-				}
+			switch out := res.Output().(type) {
+			case *AddPinOutput:
+				added = out.Pins
+			case <-chan interface{}:
 				progressLine := false
-				for r0 := range ch {
+				for r0 := range out {
 					r := r0.(*AddPinOutput)
-					if r.Progress == -1 || r.Pins != nil {
+					if res.Error() != nil {
+						return nil, res.Error()
+					} else if r.Progress == -1 || r.Pins != nil {
 						added = r.Pins
 					} else {
 						if progressLine {
@@ -145,6 +143,8 @@ var addPinCmd = &cmds.Command{
 				if progressLine {
 					fmt.Fprintf(res.Stderr(), "\n")
 				}
+			default:
+				return nil, u.ErrCast()
 			}
 			var pintype string
 			rec, found, _ := res.Request().Option("recursive").Bool()
