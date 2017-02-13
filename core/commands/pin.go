@@ -81,7 +81,7 @@ var addPinCmd = &cmds.Command{
 		}
 
 		v := new(dag.ProgressTracker)
-		ctx := context.WithValue(req.Context(), "progress", v)
+		ctx := v.DeriveContext(req.Context())
 
 		ch := make(chan []*cid.Cid)
 		go func() {

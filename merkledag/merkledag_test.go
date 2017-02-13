@@ -564,7 +564,7 @@ func testProgressIndicator(t *testing.T, depth int) {
 	cset := cid.NewSet()
 
 	v := new(ProgressTracker)
-	ctx := context.WithValue(context.Background(), "progress", v)
+	ctx := v.DeriveContext(context.Background())
 
 	err := EnumerateChildren(ctx, ds, top, cset.Visit, false)
 	if err != nil {

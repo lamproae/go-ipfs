@@ -398,6 +398,10 @@ type ProgressTracker struct {
 	lk sync.Mutex
 }
 
+func (p *ProgressTracker) DeriveContext (ctx context.Context) context.Context {
+	return context.WithValue(ctx, "progress", p)
+}
+
 func (p *ProgressTracker) Increment() {
 	p.lk.Lock()
 	defer p.lk.Unlock()
