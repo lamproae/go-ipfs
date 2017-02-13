@@ -204,7 +204,7 @@ Remove blocks from either the filestore or the main blockstore.
 `,
 	},
 	Arguments: []cmds.Argument{
-		cmds.StringArg("hash", true, true, "Bash58 encoded multihash of block(s) to remove."),
+		cmds.StringArg("hash", true, true, "CID's of block(s) to remove."),
 	},
 	Options: []cmds.Option{
 		cmds.BoolOption("force", "f", "Ignore nonexistent blocks."),
