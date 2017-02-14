@@ -96,10 +96,10 @@ var addPinCmd = &cmds.Command{
 		out := make(chan interface{})
 		res.SetOutput((<-chan interface{})(out))
 		go func() {
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
 			defer close(out)
 			for {
-				timer := time.NewTimer(500 * time.Millisecond)
-				defer timer.Stop()
 				select {
 				case val, ok := <-ch:
 					if !ok {
@@ -108,7 +108,7 @@ var addPinCmd = &cmds.Command{
 					}
 					out <- &AddPinOutput{Progress: -1, Pins: val}
 					return
-				case <-timer.C:
+				case <-ticker.C:
 					out <- &AddPinOutput{Progress: v.Value()}
 				case <-ctx.Done():
 					res.SetError(ctx.Err(), cmds.ErrNormal)
